@@ -50,25 +50,37 @@ const API_TARGET_URL = 'https://jakpotgwab.geightdors.net/glms/v1/notify/taixiu?
 
 async function fetchGameData() {
   try {
-    const response = await axios.get(API_TARGET_URL);
+    const response = await axios.get(API_TARGET_URL, {
+      timeout: 10000
+    });
     const data = response.data;
 
-    if (data.status === "OK" && Array.isArray(data.data) && data.data.length > 0) {
+    if (data?.status === "OK" && Array.isArray(data?.data) && data.data.length > 0) {
       const game = data.data[0];
-      const sid = game.sid;
-      const d1 = game.d1;
-      const d2 = game.d2;
-      const d3 = game.d3;
+      const sid = game?.sid;
+      const d1 = game?.d1;
+      const d2 = game?.d2;
+      const d3 = game?.d3;
 
-      if (sid !== latestResult.Phien && d1 !== undefined && d2 !== undefined && d3 !== undefined) {
+      if (sid && sid !== latestResult.Phien && 
+          typeof d1 === 'number' && typeof d2 === 'number' && typeof d3 === 'number' &&
+          d1 >= 1 && d1 <= 6 && d2 >= 1 && d2 <= 6 && d3 >= 1 && d3 <= 6) {
         updateResult(d1, d2, d3, sid);
       }
     }
   } catch (error) {
-    console.error("❌ Lỗi khi lấy dữ liệu từ API GET:", error.message);
+    if (error.code === 'ECONNABORTED') {
+      console.error("⏱️ Timeout khi gọi API");
+    } else {
+      console.error("❌ Lỗi khi lấy dữ liệu từ API:", error.message);
+    }
   }
 }
 
+// Gọi ngay khi start
+fetchGameData();
+
+// Chạy mỗi 5 giây
 setInterval(fetchGameData, 5000);
 
 app.get("/api/b52levi", (req, res) => {
@@ -82,10 +94,24 @@ app.get("/api/history", (req, res) => {
   });
 });
 
-app.get("/", (req, res) => {
-  res.json({ status: "B52 Tài Xỉu đang chạy", phien: latestResult.Phien, total_history: history.length });
+// Thêm endpoint ping để giữ server wake
+app.get("/api/ditmemayb52", (req, res) => {
+  res.json({ 
+    status: "pong", 
+    timestamp: new Date().toISOString(),
+    phien: latestResult.Phien
+  });
 });
 
+app.get("/", (req, res) => {
+  res.json({ 
+    status: "B52 Tài Xỉu đang chạy", 
+    phien: latestResult.Phien, 
+    total_history: history.length 
+  });
+});
+
+// Ping chính mình mỗi 5 phút
 setInterval(() => {
   if (SELF_URL.includes("http")) {
     axios.get(`${SELF_URL}/api/ditmemayb52`).catch(() => {});
